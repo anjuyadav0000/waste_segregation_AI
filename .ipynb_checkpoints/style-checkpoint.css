@@ -1,0 +1,64 @@
+/* Hide Streamlit default elements */
+[data-testid="stSidebar"] {
+    display: none;
+}
+
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+.block-container{
+    padding-top:1rem;
+    max-width:1200px;
+}
+
+/* Navbar */
+.navbar{
+    background:white;
+    border-radius:18px;
+    padding:15px 25px;
+    box-shadow:0 5px 20px rgba(0,0,0,.08);
+    margin-bottom:20px;
+}
+
+/* Hero */
+.hero{
+    background:white;
+    border-radius:30px;
+    padding:35px;
+    box-shadow:0 10px 30px rgba(0,0,0,.08);
+}
+
+.hero-badge{
+    background:#dcfce7;
+    color:#16a34a;
+    padding:8px 15px;
+    border-radius:20px;
+    display:inline-block;
+    font-weight:600;
+}
+
+.hero-title{
+    font-size:72px;
+    font-weight:800;
+    color:#16a34a;
+    margin-top:20px;
+    margin-bottom:10px;
+}
+
+.hero-sub{
+    font-size:22px;
+    font-weight:600;
+}
+
+.stat-card{
+    background:white;
+    border-radius:20px;
+    padding:20px;
+    text-align:center;
+    box-shadow:0 5px 20px rgba(0,0,0,.08);
+}
