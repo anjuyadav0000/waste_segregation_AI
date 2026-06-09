@@ -6,7 +6,7 @@ import tensorflow as tf
 
 from PIL import Image
 from tensorflow.keras.models import load_model
-from transformers import pipeline
+
 #from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 # -----------------------
