@@ -7,6 +7,7 @@ import tensorflow as tf
 from PIL import Image
 from tensorflow.keras.models import load_model
 from transformers import pipeline
+#from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 # -----------------------
 # PAGE CONFIG
@@ -417,10 +418,83 @@ h1 {{
     color:white !important;
 }}
 
-/* Card Hover */
-.metric-card:hover,
-.workflow-card:hover {{
-    transform
+
+
+div[data-testid="column"]{{
+    width:100% !important;
+}}
+
+.stMarkdown{{
+    width:100% !important;
+}}
+
+/* Upload Container */
+
+[data-testid="stFileUploaderDropzone"]{{
+    background:#000000 !important;
+    border:2px dashed #22c55e !important;
+    color:white !important;
+}}
+
+[data-testid="stFileUploaderDropzone"] *{{
+    color:white !important;
+}}
+/* Force Black Selectbox */
+
+div[data-baseweb="select"]{{
+    background:#000000 !important;
+}}
+
+div[data-baseweb="select"] > div{{
+    background:#000000 !important;
+    color:white !important;
+}}
+
+div[data-baseweb="select"] input{{
+    color:white !important;
+}}
+
+div[data-baseweb="select"] span{{
+    color:white !important;
+}}
+
+div[role="listbox"]{{
+    background:#000000 !important;
+}}
+
+div[role="option"]{{
+    background:#000000 !important;
+    color:white !important;
+}}
+
+div[role="option"]:hover{{
+    background:#222222 !important;
+}}
+
+/* Dropdown Popup Black */
+
+[data-baseweb="popover"] {{
+    background:#000000 !important;
+}}
+
+[data-baseweb="popover"] * {{
+    background:#000000 !important;
+    color:white !important;
+}}
+
+ul[role="listbox"] {{
+    background:#000000 !important;
+}}
+
+ul[role="listbox"] li {{
+    background:#000000 !important;
+    color:white !important;
+}}
+
+ul[role="listbox"] li:hover {{
+    background:#222222 !important;
+}}
+
        
         </style>
         """,
@@ -431,15 +505,16 @@ add_bg()
 # -----------------------
 # MODEL LOADING
 # -----------------------
-
 @st.cache_resource
 def load_waste_model():
     interpreter = tf.lite.Interpreter(
-        model_path="waste_model.tflite"
+        model_path="model/waste_model.tflite"
     )
     interpreter.allocate_tensors()
     return interpreter
 
+
+interpreter = load_waste_model()
 
 # -----------------------
 # WASTE CLASSES
@@ -457,40 +532,64 @@ class_names = [
 # -----------------------
 # PREDICTION FUNCTION
 # -----------------------
-
 def predict_waste(image):
 
     img = image.convert("RGB")
-    img = img.resize((224,224))
 
-    img = np.array(img)
-    img = img.astype("float32") / 255.0
+    img = img.resize((128, 128))
+
+    img = np.array(
+        img,
+        dtype=np.float32
+    )
+
+    img = img / 255.0
 
     img = np.expand_dims(
         img,
         axis=0
     )
 
-    prediction = model.predict(
-        img,
-        verbose=0
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    interpreter.set_tensor(
+        input_details[0]['index'],
+        img
     )
 
-    class_index = np.argmax(
-        prediction
+    interpreter.invoke()
+
+    prediction = interpreter.get_tensor(
+        output_details[0]['index']
     )
 
-    waste = class_names[
-        class_index
-    ]
+    prediction = prediction[0]
+
+    st.write("Raw Prediction:", prediction)
+    st.write("Predicted Index:", np.argmax(prediction))
+
+    class_index = np.argmax(prediction)
 
     confidence = float(
-        np.max(prediction)
+        prediction[class_index]
     ) * 100
 
-    return waste, confidence
+    sorted_probs = np.sort(prediction)
 
+    top1 = sorted_probs[-1]
+    top2 = sorted_probs[-2]
 
+    if top2 > 0.20:
+        waste = "Mixed Waste"
+    else:
+        waste = class_names[class_index]
+
+    return (
+        waste,
+        confidence,
+        prediction
+    )
 # -----------------------
 # HOME PAGE
 # -----------------------
@@ -642,7 +741,7 @@ elif page == "🤖 AI Detection":
 
     if image:
 
-        col1, col2 = st.columns([1,1])
+        col1, col2 = st.columns([1, 1])
 
         with col1:
 
@@ -656,102 +755,83 @@ elif page == "🤖 AI Detection":
 
             if st.button("🔍 Analyze Waste"):
 
-                with st.spinner(
-                    "Analyzing image..."
-                ):
+                with st.spinner("Analyzing image..."):
 
-                    waste, confidence = predict_waste(
-                        image
-                    )
+                    waste, confidence, prediction = predict_waste(image)
 
-                st.markdown(f"""
-                <div style="
-                background:white;
-                padding:20px;
-                border-radius:15px;
-                box-shadow:0px 4px 15px rgba(0,0,0,0.08);
-                ">
-                <h2>♻ Waste Detected</h2>
-                <h1 style="color:#16a34a;">
-                {waste.upper()}
-                </h1>
-                <h3>
-                Confidence: {confidence:.2f}%
-                </h3>
-                </div>
-                """,
-                unsafe_allow_html=True)
+                st.write("Cardboard:", prediction[0])
+                st.write("Glass:", prediction[1])
+                st.write("Metal:", prediction[2])
+                st.write("Paper:", prediction[3])
+                st.write("Plastic:", prediction[4])
+                st.write("Trash:", prediction[5])
+                st.write(f"Confidence: {confidence:.2f}%")
 
-                st.progress(
-                    int(confidence)
+                st.markdown(
+                    f"""
+                    <div style="
+                    background:white;
+                    padding:30px;
+                    border-radius:20px;
+                    text-align:center;
+                    width:100%;
+                    min-height:250px;
+                    ">
+                        <h2 style="color:black;">♻ Waste Detected</h2>
+                        <h1 style="color:#16a34a;font-size:50px;">
+                            {waste.upper()}
+                        </h1>
+                        <h3 style="color:black;">
+                            Confidence: {confidence:.2f}%
+                        </h3>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
-                recommendations = {
+                st.progress(int(confidence))
 
-                    "plastic":"🟡 Yellow Bin",
-                    "paper":"🔵 Blue Bin",
-                    "glass":"🟢 Green Bin",
-                    "metal":"⚪ Grey Bin",
-                    "cardboard":"🔵 Blue Bin",
-                    "trash":"⚫ Black Bin"
+                recommendations = {
+                    "plastic": "🟡 Yellow Bin",
+                    "paper": "🔵 Blue Bin",
+                    "glass": "🟢 Green Bin",
+                    "metal": "⚪ Grey Bin",
+                    "cardboard": "🔵 Blue Bin",
+                    "trash": "⚫ Black Bin",
+                    "Mixed Waste": "⚫ General Waste Bin"
                 }
 
                 st.info(
-                    f"🗑 Recommended Bin: {recommendations[waste]}"
+                    f"🗑 Recommended Bin: {recommendations.get(waste, '⚫ General Waste Bin')}"
                 )
 
                 tips = {
-
-                    "plastic":
-                    "♻ Clean plastic before recycling.",
-
-                    "paper":
-                    "📄 Keep paper dry and clean.",
-
-                    "glass":
-                    "🍾 Separate glass by color.",
-
-                    "metal":
-                    "🥫 Rinse cans before disposal.",
-
-                    "cardboard":
-                    "📦 Flatten cardboard boxes.",
-
-                    "trash":
-                    "🚮 Dispose safely in general waste."
+                    "plastic": "♻ Clean plastic before recycling.",
+                    "paper": "📄 Keep paper dry and clean.",
+                    "glass": "🍾 Separate glass by color.",
+                    "metal": "🥫 Rinse cans before disposal.",
+                    "cardboard": "📦 Flatten cardboard boxes.",
+                    "trash": "🚮 Dispose safely in general waste.",
+                    "Mixed Waste": "♻ Separate recyclable items before disposal."
                 }
 
                 st.success(
-                    tips[waste]
+                    tips.get(waste, "♻ Dispose responsibly.")
                 )
 
                 impact = {
-
-                    "plastic":
-                    "Plastic takes hundreds of years to decompose.",
-
-                    "paper":
-                    "Paper is biodegradable and recyclable.",
-
-                    "glass":
-                    "Glass can be recycled endlessly.",
-
-                    "metal":
-                    "Metal recycling saves large amounts of energy.",
-
-                    "cardboard":
-                    "Cardboard should be flattened before recycling.",
-
-                    "trash":
-                    "General waste should be disposed safely."
+                    "plastic": "Plastic takes hundreds of years to decompose.",
+                    "paper": "Paper is biodegradable and recyclable.",
+                    "glass": "Glass can be recycled endlessly.",
+                    "metal": "Metal recycling saves large amounts of energy.",
+                    "cardboard": "Cardboard should be flattened before recycling.",
+                    "trash": "General waste should be disposed safely.",
+                    "Mixed Waste": "Mixed waste should be segregated for better recycling."
                 }
 
                 st.info(
-                    impact[waste]
+                    impact.get(waste, "")
                 )
-
-
-
 # -----------------------
 # ANALYTICS PAGE
 # -----------------------
@@ -840,6 +920,20 @@ elif page == "📊 Analytics":
             use_container_width=True
         )
 
+        st.success("""
+📊 Waste Distribution Summary
+
+• Plastic waste accounts for the largest share (35%).
+
+• Paper waste is the second most common category (25%).
+
+• Glass contributes around 15% of the waste stream.
+
+• Metal, Trash, and Cardboard together form a smaller proportion.
+
+• The analysis highlights the need for improved plastic and paper recycling initiatives.
+""")
+
     # BAR CHART
 
     with col2:
@@ -856,9 +950,17 @@ elif page == "📊 Analytics":
             use_container_width=True
         )
 
-    st.info(
-        "Plastic waste is currently the most common category detected by the AI model."
-    )
+        st.info("""
+📈 Waste Category Analysis Summary
+
+• Plastic and Paper are the most frequently detected waste types.
+
+• Glass waste appears at a moderate level.
+
+• Metal, Trash, and Cardboard have lower detection counts.
+
+• Waste reduction programs should focus primarily on Plastic and Paper categories.
+""")
 
     st.write("")
 
@@ -899,12 +1001,34 @@ elif page == "📊 Analytics":
     )
 
     st.success("""
-🌍 Impact Summary
+📅 Monthly Recycling Trend Summary
 
-Recycling activities have steadily increased
-over the last six months, reducing landfill waste
-and promoting sustainable waste management.
+• Recycling performance has improved consistently from January to June.
+
+• Recycled items increased from 120 in January to 500 in June.
+
+• The highest growth was observed between April and June.
+
+• The upward trend reflects increased awareness of waste segregation and recycling practices.
+
+• Smart waste management systems can further improve sustainability outcomes.
 """)
+
+    st.success("""
+🌍 Environmental Impact Summary
+
+• Over 2,500 waste items have been processed through the system.
+
+• More than 1,800 recyclable items were successfully identified.
+
+• Approximately 320 kg of carbon emissions were prevented through improved recycling practices.
+
+• AI-powered waste classification helps reduce landfill dependency and promotes a cleaner environment.
+
+• Continuous recycling efforts contribute directly to long-term sustainability goals.
+""")
+
+
 
 
 # -----------------------
@@ -951,6 +1075,10 @@ elif page == "📍 Recycling Locator":
 
     st.title("📍 Recycling Locator")
 
+    st.markdown("""
+Find nearby recycling centers and contribute to a cleaner, greener environment.
+""")
+
     city = st.selectbox(
         "Select City",
         [
@@ -961,31 +1089,119 @@ elif page == "📍 Recycling Locator":
         ]
     )
 
-    locations = {
+    recycling_centers = {
 
-        "Delhi":[28.6139,77.2090],
-        "Mumbai":[19.0760,72.8777],
-        "Jaipur":[26.9124,75.7873],
-        "Lucknow":[26.8467,80.9462]
+        "Delhi": pd.DataFrame({
+            "lat":[28.7041, 28.6139, 28.5355],
+            "lon":[77.1025, 77.2090, 77.3910],
+            "Center":[
+                "Eco Recycling Center",
+                "Green Earth Recycling",
+                "Smart Waste Hub"
+            ],
+            "Location":[
+                "Rohini, Delhi",
+                "Connaught Place, Delhi",
+                "Noida Sector 62"
+            ]
+        }),
+
+        "Mumbai": pd.DataFrame({
+            "lat":[19.0896, 19.0760, 19.2183],
+            "lon":[72.8656, 72.8777, 72.9781],
+            "Center":[
+                "Mumbai Recycling Center",
+                "Green Waste Station",
+                "Eco Smart Hub"
+            ],
+            "Location":[
+                "Andheri East, Mumbai",
+                "Bandra West, Mumbai",
+                "Navi Mumbai"
+            ]
+        }),
+
+        "Jaipur": pd.DataFrame({
+            "lat":[26.8467, 26.9124, 26.8890],
+            "lon":[75.8258, 75.7873, 75.7420],
+            "Center":[
+                "Jaipur Recycling Center",
+                "Eco Waste Point",
+                "Green Earth Jaipur"
+            ],
+            "Location":[
+                "Malviya Nagar, Jaipur",
+                "Vaishali Nagar, Jaipur",
+                "Mansarovar, Jaipur"
+            ]
+        }),
+
+        "Lucknow": pd.DataFrame({
+            "lat":[26.8750, 26.8467, 26.8500],
+            "lon":[80.9100, 80.9462, 80.9920],
+            "Center":[
+                "Lucknow Recycling Hub",
+                "Eco Collection Center",
+                "Smart Green Station"
+            ],
+            "Location":[
+                "Gomti Nagar, Lucknow",
+                "Hazratganj, Lucknow",
+                "Alambagh, Lucknow"
+            ]
+        })
     }
+
+    map_data = recycling_centers[city]
 
     st.success(
         f"Showing recycling centers in {city}"
     )
 
-    map_data = pd.DataFrame(
-        {
-            "lat":[locations[city][0]],
-            "lon":[locations[city][1]]
-        }
+    st.map(
+        map_data[["lat", "lon"]]
     )
 
-    st.map(map_data)
+    st.subheader("♻ Available Recycling Centers")
+
+    for _, row in map_data.iterrows():
+
+        st.info(
+            f"""
+📍 {row['Center']}
+
+🏠 Location: {row['Location']}
+
+🌐 Latitude: {row['lat']}
+
+🌐 Longitude: {row['lon']}
+"""
+        )
+
+        st.link_button(
+            f"🧭 Open {row['Center']} in Google Maps",
+            f"https://www.google.com/maps/search/?api=1&query={row['lat']},{row['lon']}"
+        )
+
+    st.success("""
+🌱 Recycling Benefits
+
+• Reduces landfill waste
+
+• Conserves natural resources
+
+• Saves energy
+
+• Supports a cleaner environment
+
+• Promotes sustainable living
+""")
 
     st.image(
         "images/eco_city.png",
         use_container_width=True
     )
+
 
 
 
