@@ -536,7 +536,7 @@ def predict_waste(image):
 
     img = image.convert("RGB")
 
-    img = img.resize((128, 128))
+    img = img.resize((224, 224))
 
     img = np.array(
         img,
